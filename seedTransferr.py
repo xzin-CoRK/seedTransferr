@@ -62,24 +62,28 @@ def read_config():
                 log(msg)
                 raise Exception(msg)
             
-            # if 'local_qbit_user' not in config or not config['local_qbit_user']:
-            #     msg = "ERROR: Local Qbittorrent username not found in config.yaml"
-            #     log(msg)
-            #     raise Exception(msg)
+            # Check for local auth creds when needed
+            if config['local_auth_required']:
             
-            # if 'local_qbit_pass' not in config or not config['local_qbit_pass']:
-            #     msg = "ERROR: Local Qbittorrent password not found in config.yaml"
-            #     log(msg)
-            #     raise Exception(msg)
+                if 'local_qbit_user' not in config or not config['local_qbit_user']:
+                    msg = "ERROR: Local Qbittorrent username not found in config.yaml"
+                    log(msg)
+                    raise Exception(msg)
+                
+                if 'local_qbit_pass' not in config or not config['local_qbit_pass']:
+                    msg = "ERROR: Local Qbittorrent password not found in config.yaml"
+                    log(msg)
+                    raise Exception(msg)
             
             global remote_qbit_url, remote_qbit_user, remote_qbit_pass, local_qbit_url
-            global local_qbit_user, local_qbit_pass, trackers, inactivity_threshold
+            global local_qbit_user, local_qbit_pass, trackers, inactivity_threshold, local_auth_required
             remote_qbit_url = config['remote_qbit_url']
             remote_qbit_user = config['remote_qbit_user']
             remote_qbit_pass = config['remote_qbit_pass']
             local_qbit_url = config['local_qbit_url']
-            # local_qbit_user = config['local_qbit_user']
-            # local_qbit_pass = config['local_qbit_pass']
+            local_qbit_user = config['local_qbit_user']
+            local_qbit_pass = config['local_qbit_pass']
+            local_auth_required = config['local_auth_required']
             
             trackers = config['trackers']
             inactivity_threshold = calculate_inactivity_threshold(config['inactivity_threshold'])
@@ -95,7 +99,10 @@ def qb_connect():
     remote_qb.login(remote_qbit_user, remote_qbit_pass)
 
     local_qb = Client(local_qbit_url)
-    local_qb.login()
+    if local_auth_required:
+        local_qb.login(local_qbit_user, local_qbit_pass)
+    else:
+        local_qb.login()
 
 def get_completed_and_paused():
     '''Retrieve all torrents which are done downloading and have reached their ratio limit. These will be marked as "Complete" in qbittorrent'''
