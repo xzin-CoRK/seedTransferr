@@ -3,6 +3,7 @@ import requests
 import datetime
 import os
 import re
+import time
 from datetime import datetime
 from datetime import timedelta
 from qbittorrent import Client
@@ -129,6 +130,10 @@ def get_inactive():
             log("%s flagged for migration [exceeds inactivity threshold]" % torrent['name'])
             t = Torrent(torrent['hash'], torrent['name'], torrent['category'])
             hashlist.append(t)
+        else:
+            # the results are sorted by last_activity
+            # so exit the loop immediately once activity is too fresh rather than looping needlessly through everything
+            break
         
 
 def supplement_id():
@@ -155,13 +160,12 @@ def add_to_local_client():
         local_qb.download_from_link(torrent.download_url, category=torrent.category, paused="true")
         log("Added torrent %s to local client" % torrent.name)
         
-        time.sleep(1.5) # Need to wait for file to download and show in client
+        time.sleep(1.5) # Wait a beat for file to show in client
 
 
 def force_recheck():
     for torrent in hashlist:
         local_qb.recheck(torrent.hash)
-        local_qb.force_start(torrent.hash, value=True)
 
 def remove_from_seedbox():
     for torrent in hashlist:
@@ -189,13 +193,13 @@ get_inactive()
 supplement_id()
 
 # Get the .torrent file download link from UNIT3D API to add on local qbit client
-# get_download_link()
+get_download_link()
 
-# add_to_local_client()
+add_to_local_client()
 
-# force_recheck()
+force_recheck()
 
 # Removes the torrent from qBittorrent and DELETES THE DATA FROM THE SEEDBOX
-# remove_from_seedbox()
+remove_from_seedbox()
 
 log("seedTransferr completed")
