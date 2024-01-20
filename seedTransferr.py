@@ -1,17 +1,20 @@
 import yaml
 import requests
 import datetime
+import sqlite3
 import os
 import re
 import time
+import uuid
+from contextlib import closing
 from datetime import datetime
 from datetime import timedelta
 from qbittorrent import Client
 
-# Establish the list of torrents to clean up
-hashlist = []
-
-TRACKER_REGEX = "https://(fearnopeer\.com|reelflix\.xyz)/torrents/(\d{1,10})"
+# Global Variables
+hashlist = []   # Establish the list of torrents to clean up
+nonce = uuid.uuid4().hex    # Creates a unique id for each script run
+TRACKER_REGEX = "https://(fearnopeer\.com|reelflix\.xyz)/torrents/(\d{1,10})"   # Extracts tracker and torrent id info
 
 class Torrent:
     id = 0
@@ -34,6 +37,13 @@ def log(message):
     ts = datetime.now()
 
     print("%s | %s" % (ts, message))
+
+def setup_db():
+    '''make the sqlite database if it doesn't exist yet'''
+    with closing(sqlite3.connect('seedTransferr.db', isolation_level=None)) as connection:
+        with closing(connection.cursor()) as cursor:
+            # Create table if it doesn't exist
+            cursor.execute("CREATE TABLE IF NOT EXISTS seedTransferr(hash TEXT, nonce TEXT, name TEXT)")
 
 def read_config():
     '''Parse the config.yaml file to gather trackers, queries, and keys'''
@@ -91,7 +101,6 @@ def read_config():
         except yaml.YAMLError as exc:
             print(exc)
 
-
 def qb_connect():
     '''Create a global connection to qb so that we only have to connect once'''
     global remote_qb, local_qb
@@ -113,7 +122,7 @@ def get_completed_and_paused():
             t = Torrent(torrent['hash'], torrent['name'], torrent['category'])
             
             hashlist.append(t)
-            log("%s flagged for migration [completed and paused]" % t.name)
+            log("Migrating %s [completed and paused]" % t.name)
 
 def calculate_inactivity_threshold(threshold_string):
     UNITS = {'s':'seconds', 'm':'minutes', 'h':'hours', 'd':'days', 'w':'weeks'}
@@ -126,7 +135,6 @@ def calculate_inactivity_threshold(threshold_string):
         )
     }).total_seconds())
 
-
 def get_inactive():
     '''Retrieve torrents which meet configured inactivity threshold'''
     inactive_torrents = remote_qb.torrents(filter='completed', sort='last_activity')
@@ -134,14 +142,13 @@ def get_inactive():
     for torrent in inactive_torrents:
         age = unix_ts - torrent['last_activity']
         if age >= inactivity_threshold:
-            log("%s flagged for migration [exceeds inactivity threshold]" % torrent['name'])
+            log("Migrating %s [exceeds inactivity threshold]" % torrent['name'])
             t = Torrent(torrent['hash'], torrent['name'], torrent['category'])
             hashlist.append(t)
         else:
             # the results are sorted by last_activity
             # so exit the loop immediately once activity is too fresh rather than looping needlessly through everything
             break
-        
 
 def supplement_id():
     '''Grabs the tracker name and torrent id from the torrent's comment'''
@@ -165,10 +172,9 @@ def get_download_link():
 def add_to_local_client():
     for torrent in hashlist:
         local_qb.download_from_link(torrent.download_url, category=torrent.category, paused="true")
-        log("Added torrent %s to local client" % torrent.name)
+        log("Adding torrent %s to local client" % torrent.name)
         
         time.sleep(1.5) # Wait a beat for file to show in client
-
 
 def force_recheck():
     for torrent in hashlist:
@@ -177,12 +183,30 @@ def force_recheck():
 def remove_from_seedbox():
     for torrent in hashlist:
         remote_qb.delete_permanently(torrent.hash)
-        log("Deleted torrent %s from seedbox" % torrent.name)
+        log("Deleting torrent %s from seedbox" % torrent.name)
+
+def insert_into_db():
+    '''Create a database record for each transferred torrent so we can start it next time'''
+    with closing(sqlite3.connect('seedTransferr.db', isolation_level=None)) as connection:
+        with closing(connection.cursor()) as cursor:
+            for torrent in hashlist:
+                cursor.execute("INSERT INTO seedTransferr (hash, nonce, name) VALUES('%s', '%s', '%s')" % (torrent.hash, nonce, torrent.name))
+
+def resume_from_db():
+    '''Fetch previously transferred torrents and resume them'''
+    with closing(sqlite3.connect('seedTransferr.db', isolation_level=None)) as connection:
+        with closing(connection.cursor()) as cursor:
+            for to_resume in cursor.execute("SELECT hash, name FROM seedTransferr WHERE nonce <> '%s'" % nonce):
+                local_qb.resume(to_resume[0])
+                log("Attempting to resume previously added torrent %s" % to_resume[1])
 
 log("seedTransferr started")
 
 # Set the working directory in case seedTransferr was kicked off by cron
 set_wd()
+
+# Create the sqlite database if it doesn't exist yet
+setup_db()
 
 # Get user config values
 read_config()
@@ -204,9 +228,13 @@ get_download_link()
 
 add_to_local_client()
 
+insert_into_db()
+
 force_recheck()
 
 # Removes the torrent from qBittorrent and DELETES THE DATA FROM THE SEEDBOX
 remove_from_seedbox()
+
+resume_from_db()
 
 log("seedTransferr completed")
