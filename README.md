@@ -10,6 +10,7 @@ This script automates the transfer of qBittorrent torrents from your remote seed
 ```
 git clone https://github.com/xzin-CoRK/seedTransferr.git
 cd seedTransferr
+pip install -r requirements.txt
 mv config.yaml.example config.yaml
 ```
 
