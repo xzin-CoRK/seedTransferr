@@ -1,0 +1,20 @@
+# Seedbox qBittorrent settings
+remote_qbit_url: "http://seedbox.qbit.url"
+remote_qbit_user:  "YourS33db0xQBitUsername"
+remote_qbit_pass:  "YourS33db0xQBitP4ssword"
+
+# Local qBittorrent settings
+local_qbit_url: "http://your.local.qbit.lan:8080"
+local_auth_required: False
+local_qbit_user: # Only required when local_auth_required is set to True
+local_qbit_pass: # Only required when local_auth_required is set to True
+
+# Tracker settings
+trackers:
+  - url: "reelflix.xyz"
+    api_key: "your_api_key"
+  - url: "fearnopeer.com"
+    api_key: "your_api_key"
+
+# Cleanup settings
+inactivity_threshold: 6d
