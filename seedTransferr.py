@@ -196,9 +196,14 @@ def resume_from_db():
     '''Fetch previously transferred torrents and resume them'''
     with closing(sqlite3.connect('seedTransferr.db', isolation_level=None)) as connection:
         with closing(connection.cursor()) as cursor:
+            # Get previous hashes and resume
             for to_resume in cursor.execute("SELECT hash, name FROM seedTransferr WHERE nonce <> '%s'" % nonce):
                 local_qb.resume(to_resume[0])
                 log("Attempting to resume previously added torrent %s" % to_resume[1])
+            
+            # Delete previous hashes
+            cursor.execute("DELETE FROM seedTransferr WHERE nonce <> '%s'" % nonce)
+
 
 log("seedTransferr started")
 
