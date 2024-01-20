@@ -1,7 +1,7 @@
 # seedTransferr
 
 seedTransferr is for people who use a seedbox for initial downloading/sharing before moving their torrents to another device for long-term seeding. This script automates the cleanup and transfer of qBittorrent torrents from your remote seedbox to your permaseed box. It will:
-1) Remove torrent from seedbox qBittorrent (**⚠️deleting associated data⚠️**) based on user-configured rules
+1) Remove torrent from seedbox qBittorrent (**⚠️ deleting associated data ⚠️**) based on user-configured rules
 2) Add torrent to local qBittorrent, preserving the original category
 3) Force recheck and start seeding on local qBittorrent
 
