@@ -12,9 +12,11 @@ local_qbit_pass: # Only required when local_auth_required is set to True
 # Tracker settings
 trackers:
   - url: "reelflix.xyz"
-    api_key: "your_api_key"
+    api_key: "your_api_key" # Add your API key if you use this tracker; otherwise just leave as is
   - url: "fearnopeer.com"
-    api_key: "your_api_key"
+    api_key: "your_api_key" # Add your API key if you use this tracker; otherwise just leave as is
 
 # Cleanup settings
+# Inactivity Threshold can be entered as number of weeks, days, hours, minutes, or seconds (or any combination thereof)
+# For example: "1w" = 1 week | "1w 3d" = 1 week, 3 days | "8d 1h 1s" = 8 days, 1 hour, 1 second
 inactivity_threshold: 6d
