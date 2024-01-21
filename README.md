@@ -54,4 +54,23 @@ Then tell cron to run every night at midnight and 3am, logging the results in th
 
 ## Supported Trackers
 
-seedTransferr currently only supports FnP and RFX. It utilizes the UNIT3D API, so in theory any UNIT3D tracker will work. However, I'm not a member of any other UNIT3D trackers, so I haven't been able to test and implement those. If you have a tracker you'd like added, let's talk.
+The following trackers are supported. seedTransferr utilizes the UNIT3D API, so any UNIT3D client can easily be added. Want support for your tracker? Reach out.
+
+| Acronym | Site Name |
+|---------|-----------|
+|  ACM    | AsianCinema |
+|  ATH    | Aither |
+|  BHD    | Beyond-HD |
+|  BLU    | Blutopia |
+|  R4E    | Racing4Everyone |
+|  Ntelogo    | Ntelogo |
+|  DT    | DesiTorrents |
+|  STT    | SkipTheTrailers |
+|  STC    | SkipTheCommercials |
+|  RF    | ReelFliX |
+|  LST    | LST |
+|  TDC    | TheDarkCommunity |
+|  TELLY    | Telly |
+|  FNP    | FearNoPeer |
+|  ULCX    | Upload.cx |
+|  OE    | OnlyEncodes |

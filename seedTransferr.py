@@ -14,7 +14,7 @@ from qbittorrent import Client
 # Global Variables
 hashlist = []   # Establish the list of torrents to clean up
 nonce = uuid.uuid4().hex    # Creates a unique id for each script run
-TRACKER_REGEX = "https://(fearnopeer\.com|reelflix\.xyz)/torrents/(\d{1,10})"   # Extracts tracker and torrent id info
+TRACKER_REGEX = "https://(fearnopeer\.com|reelflix\.xyz|asiancinema\.me|aither\.cc|beyond-hd\.me|blutopia\.xyz|racing4everyone\.eu|ntelogo\.org|desitorrents\.rocks|skipthetrailers\.xyz|skipthecommericals\.xyz|lst\.gg|thedarkcommunity\.cc|telly\.wtf|upload\.cx|onlyencodes\.cc)/torrents/(\d{1,10})"   # Extracts tracker and torrent id info
 
 class Torrent:
     id = 0
