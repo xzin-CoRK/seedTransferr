@@ -21,10 +21,16 @@ class Torrent:
     tracker = ""
     torrent_url = ""
     download_url = ""
-    def __init__(self, hash, name, category):
+    def __init__(self, hash, name, category, tags):
         self.hash = hash
         self.name = name
         self.category = category
+        
+        # Ensure that self.tags is a list
+        if not isinstance(tags, list):
+            self.tags = [tags]
+        else:
+            self.tags = tags
 
 def set_wd():
     '''Helper function that sets the working directory to the python script location. Useful when seedTransferr is trigger by cron.'''
@@ -52,6 +58,7 @@ def read_config():
             config = yaml.safe_load(stream)
             
             # Ensure all needed config values are provided. If not, stop execution
+
             if 'remote_qbit_url' not in config or not config['remote_qbit_url']:
                 msg = "ERROR: Remote Qbittorrent WebUI URL not found in config.yaml"
                 log(msg)
@@ -85,8 +92,10 @@ def read_config():
                     log(msg)
                     raise Exception(msg)
             
+            # Set config variables for later use
             global remote_qbit_url, remote_qbit_user, remote_qbit_pass, local_qbit_url
             global local_qbit_user, local_qbit_pass, trackers, inactivity_threshold, local_auth_required
+            global excluded_categories, excluded_tags
             remote_qbit_url = config['remote_qbit_url']
             remote_qbit_user = config['remote_qbit_user']
             remote_qbit_pass = config['remote_qbit_pass']
@@ -94,6 +103,8 @@ def read_config():
             local_qbit_user = config['local_qbit_user']
             local_qbit_pass = config['local_qbit_pass']
             local_auth_required = config['local_auth_required']
+            excluded_categories = config['excluded_categories']
+            excluded_tags = list(config['excluded_tags'])
             
             trackers = config['trackers']
             inactivity_threshold = calculate_inactivity_threshold(config['inactivity_threshold'])
@@ -113,16 +124,34 @@ def qb_connect():
     else:
         local_qb.login()
 
+def is_category_excluded(torrent):
+    '''Returns True when the torrents category is in the user's excluded_categories config'''
+    return torrent.category in excluded_categories
+
+def is_tag_excluded(torrent):
+    '''Returns true when any of the torrent's tags are in the user's excluded_tags config'''
+    for tag in torrent.tags:
+        if tag in excluded_tags:
+            return True
+    return False
+
 def get_completed_and_paused():
     '''Retrieve all torrents which are done downloading and have reached their ratio limit. These will be marked as "Complete" in qbittorrent'''
     completed_torrents = remote_qb.torrents(filter='completed')
 
     for torrent in completed_torrents:
         if torrent['state'] == "pausedUP":
-            t = Torrent(torrent['hash'], torrent['name'], torrent['category'])
+            t = Torrent(torrent['hash'], torrent['name'], torrent['category'], torrent['tags'])
             
-            hashlist.append(t)
-            log("Migrating %s [completed and paused]" % t.name)
+            if is_category_excluded(t):
+                log("Skipping %s [completed and paused, but category is excluded]" % (t.name))
+                continue
+            elif is_tag_excluded(t):
+                log("Skipping %s [completed and paused, but tag is excluded]" % (t.name))
+                continue
+            else:
+                hashlist.append(t)
+                log("Migrating %s [completed and paused]" % t.name)
 
 def calculate_inactivity_threshold(threshold_string):
     UNITS = {'s':'seconds', 'm':'minutes', 'h':'hours', 'd':'days', 'w':'weeks'}
@@ -142,9 +171,17 @@ def get_inactive():
     for torrent in inactive_torrents:
         age = unix_ts - torrent['last_activity']
         if age >= inactivity_threshold:
-            log("Migrating %s [exceeds inactivity threshold]" % torrent['name'])
-            t = Torrent(torrent['hash'], torrent['name'], torrent['category'])
-            hashlist.append(t)
+            t = Torrent(torrent['hash'], torrent['name'], torrent['category'], torrent['tags'])
+
+            if is_category_excluded(t):
+                log("Skipping %s [exceeds inactivity threshold, but category is excluded]" % (t.name))
+                continue
+            elif is_tag_excluded(t):
+                log("Skipping %s [exceeds inactivity threshold, but tag is excluded]" % (t.name))
+                continue
+            else:
+                log("Migrating %s [exceeds inactivity threshold]" % torrent['name'])
+                hashlist.append(t)
         else:
             # the results are sorted by last_activity
             # so exit the loop immediately once activity is too fresh rather than looping needlessly through everything
@@ -161,6 +198,7 @@ def supplement_id():
         torrent.torrent_url = match.group(0).replace('/torrents/', '/api/torrents/')
 
 def get_download_link():
+    '''Send a request to the API and add the download link to the Torrent object'''
     for torrent in hashlist:
         r = requests.get(torrent.torrent_url, headers={
             'Authorization': 'Bearer ' + [api for api in trackers if api['url'] == torrent.tracker][0]['api_key'],
@@ -170,6 +208,7 @@ def get_download_link():
         torrent.download_url = r['attributes']['download_link']
 
 def add_to_local_client():
+    '''Add the Torrents in hashlist to the local qbit client in a paused state, preserving category'''
     for torrent in hashlist:
         local_qb.download_from_link(torrent.download_url, category=torrent.category, paused="true")
         log("Adding torrent %s to local client" % torrent.name)
@@ -177,10 +216,12 @@ def add_to_local_client():
         time.sleep(1.5) # Wait a beat for file to show in client
 
 def force_recheck():
+    '''Force recehck for all Torrents in hashlist'''
     for torrent in hashlist:
         local_qb.recheck(torrent.hash)
 
 def remove_from_seedbox():
+    '''Remove all Torrents (and associated data) in hashlist from the remote qbit client'''
     for torrent in hashlist:
         remote_qb.delete_permanently(torrent.hash)
         log("Deleting torrent %s from seedbox" % torrent.name)
@@ -231,15 +272,19 @@ supplement_id()
 # Get the .torrent file download link from UNIT3D API to add on local qbit client
 get_download_link()
 
+# Inject into local qbit
 add_to_local_client()
 
+# Create DB record so we can resume during next run
 insert_into_db()
 
+# Force recheck for everything that was transferred
 force_recheck()
 
 # Removes the torrent from qBittorrent and DELETES THE DATA FROM THE SEEDBOX
 remove_from_seedbox()
 
+# Resume everything from last run
 resume_from_db()
 
 log("seedTransferr completed")
