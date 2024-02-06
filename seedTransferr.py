@@ -231,7 +231,8 @@ def insert_into_db():
     with closing(sqlite3.connect('seedTransferr.db', isolation_level=None)) as connection:
         with closing(connection.cursor()) as cursor:
             for torrent in hashlist:
-                cursor.execute("INSERT INTO seedTransferr (hash, nonce, name) VALUES('%s', '%s', '%s')" % (torrent.hash, nonce, torrent.name))
+                safe_name = re.escape(torrent.name) # Escape any quotes in the torrent name so it doesn't break the insert statement
+                cursor.execute('INSERT INTO seedTransferr (hash, nonce, name) VALUES("%s", "%s", "%s")' % (torrent.hash, nonce, safe_name))
 
 def resume_from_db():
     '''Fetch previously transferred torrents and resume them'''
@@ -239,8 +240,9 @@ def resume_from_db():
         with closing(connection.cursor()) as cursor:
             # Get previous hashes and resume
             for to_resume in cursor.execute("SELECT hash, name FROM seedTransferr WHERE nonce <> '%s'" % nonce):
-                local_qb.resume(to_resume[0])
-                log("Attempting to resume previously added torrent %s" % to_resume[1])
+                local_qb.resume(to_resume[0]) # send the hash to qbit
+                name_unescaped = to_resume[1].replace('\.', '.').replace("\'", "'").replace("\ ", " ").replace("\-", "-") # unescape the name for friendlier logging
+                log("Attempting to resume previously added torrent %s" % name_unescaped)
             
             # Delete previous hashes
             cursor.execute("DELETE FROM seedTransferr WHERE nonce <> '%s'" % nonce)
